@@ -13,7 +13,7 @@
 #include <string>
 
 
-//#define SB_FSMO_USE_NAME_HASHMAP - see USEFUL NOTE
+//#define SB_FSMO_USE_NAME_HASHMAP
 #ifdef SB_FSMO_USE_NAME_HASHMAP
 #include <unordered_map>
 #endif
@@ -63,6 +63,9 @@ public:
         uint32_t id = storage.size();
         storage.emplace_back(id, name);
         this->head = &storage.back();
+#ifdef SB_FSMO_USE_NAME_HASHMAP
+        this->name_map.insert(std::make_pair(name, &storage.back()));
+#endif
         return this->head;
     }
 
@@ -76,7 +79,7 @@ public:
 
 #ifdef SB_FSMO_USE_NAME_HASHMAP
         // This requires that names are unique!
-        this->name_map.insert(name, id);
+        this->name_map.insert(std::make_pair(name, &storage.back()));
 #endif
         if (children != nullptr) {
             add_children(&storage.back(), children);
@@ -93,6 +96,9 @@ public:
 
         uint32_t id = storage.size();
         storage.emplace_back(id, name);
+#ifdef SB_FSMO_USE_NAME_HASHMAP
+        this->name_map.insert(std::make_pair(name, &storage.back()));
+#endif
 
         if (children != nullptr) {
             add_children(&storage.back(), children);
@@ -194,7 +200,7 @@ private:
             DirectedNode* child = nullptr;
 
 #ifdef SB_FSMO_USE_NAME_HASHMAP
-            child = name_map.find(*name)
+            child = name_map[name];
 #else
             for (auto jt = storage.begin(); jt != storage.end(); jt++) {
                 if (*(jt->get_name()) == name) {
@@ -210,7 +216,7 @@ private:
     std::list<DirectedNode> storage;
 
 #ifdef SB_FSMO_USE_NAME_HASHMAP
-    std::unordered_map<std::String, uint32_t> name_map;
+    std::unordered_map<std::string, DirectedNode*> name_map;
 #endif
     DirectedNode* head;
     DirectedNode* start;
