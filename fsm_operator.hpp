@@ -9,7 +9,7 @@
 // making decisions with artificial intelligence
 
 #include <stdint.h>
-#include <vector>
+#include <list>
 #include <string>
 
 
@@ -62,22 +62,7 @@ public:
 
         uint32_t id = storage.size();
         storage.emplace_back(id, name);
-        this->head = &storage[id];
-        return this->head;
-    }
-
-    // Create a node and add it to the FSM, set it as the parent,
-    // and optionally with a set of existing children. If there are duplicates
-    // in the optional set, they will be filtered out.
-    const DirectedNode* create_node(const std::string& name, const std::vector<uint32_t>* children) {
-
-        uint32_t id = storage.size();
-        storage.emplace_back(id, name);
-
-        if (children != nullptr) {
-            add_children(&storage[id], children);
-        }
-        this->head = &storage[id];
+        this->head = &storage.back();
         return this->head;
     }
 
@@ -94,9 +79,9 @@ public:
         this->name_map.insert(name, id);
 #endif
         if (children != nullptr) {
-            add_children(&storage[id], children);
+            add_children(&storage.back(), children);
         }
-        this->head = &storage[id];
+        this->head = &storage.back();
         return this->head;
     }
 
@@ -110,22 +95,23 @@ public:
         storage.emplace_back(id, name);
 
         if (children != nullptr) {
-            add_children(&storage[id], children);
+            add_children(&storage.back(), children);
         }
-        this->head = &storage[id];
+        this->head = &storage.back();
         return this->head;
     }
 
     // Set this node as the head, which will be used when calling functions that modify the node
     void set_parent(const DirectedNode* node) {
 
-        uint32_t idx = node->get_id();
-        this->head = &storage[idx];
+        // Violating const, should probably not do this
+        uint64_t idx = node;
+        this->head = idx;
     }
 
     // Set the start point of the FSM to the current head
     void set_start_point() {
-        start = head->get_id();
+        start = head;
     }
 
     // Set the evaluation function of the current head
@@ -148,18 +134,16 @@ public:
 
         std::string graph = "digraph G { \n";
 
-        for (int i = 0; i < storage.size(); i++) {
+        for (auto it = storage.begin(); it != storage.end(); it++) {
 
-            DirectedNode* node = &storage[i];
-
-            std::string node_name = "N" + std::to_string(node->get_id());
+            std::string node_name = "N" + std::to_string(it->get_id());
 
             graph = graph + node_name + "[shape=record, label=\"" + node_name;
-            graph = graph + "|{" + *(node->get_name()) + "}\"];\n";
+            graph = graph + "|{" + *(it->get_name()) + "}\"];\n";
 
-            for (int j = 0; j < node->get_children()->size(); j++) {
+            for (int j = 0; j < it->get_children()->size(); j++) {
 
-                std::string child_id = std::to_string(node->get_children()->at(j)->get_id());
+                std::string child_id = std::to_string(it->get_children()->at(j)->get_id());
 
                 graph = graph + node_name + ":s -> N" + child_id + ":n [label=\"\"];\n";
             }
@@ -177,7 +161,7 @@ public:
     }
 
     void start_operation(Action* action_parameter) {
-        head = &storage[start];
+        head = start;
         is_operating = true;
         head->call_action(action_parameter);
     }
@@ -201,43 +185,35 @@ private:
             parent->add_child((*children)[i]);
         }
     }
-
-    void add_children(DirectedNode* parent, const std::vector<uint32_t>* children) {
-
-        for (int i = 0; i < children->size(); i++) {
-            uint32_t child_idx = children[i];
-            parent->add_child(&storage[child_idx]);
-        }
-    }
     
     void add_children(DirectedNode* parent, const std::vector<std::string>* children) {
 
         for (int i = 0; i < children->size(); i++) {
 
             std::string name = (children->at(i));
-            uint32_t child_idx = 0;
+            DirectedNode* child = nullptr;
 
 #ifdef SB_FSMO_USE_NAME_HASHMAP
-            child_idx = name_map.find(*name)
+            child = name_map.find(*name)
 #else
-            for (int j = 0; j < storage.size(); j++) {
-                if (*(storage[j].get_name()) == name) {
-                    child_idx = j;
+            for (auto jt = storage.begin(); jt != storage.end(); jt++) {
+                if (*(jt->get_name()) == name) {
+                    child = &(*jt);
                     break;
                 }
             }
 #endif
-            parent->add_child(&storage[child_idx]);
+            parent->add_child(child);
         }
     }
 
-    std::vector<DirectedNode> storage;
+    std::list<DirectedNode> storage;
 
 #ifdef SB_FSMO_USE_NAME_HASHMAP
     std::unordered_map<std::String, uint32_t> name_map;
 #endif
     DirectedNode* head;
-    uint32_t start;
+    DirectedNode* start;
 
     bool is_operating;
 };
